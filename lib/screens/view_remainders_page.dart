@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:convert'; // For JSON encoding/decoding
+import 'package:shared_preferences/shared_preferences.dart';
 import 'set_remainder_page.dart';
 
 class ViewRemindersPage extends StatefulWidget {
@@ -9,12 +11,44 @@ class ViewRemindersPage extends StatefulWidget {
 }
 
 class _ViewRemindersPageState extends State<ViewRemindersPage> {
-  final List<Map<String, String>> _reminders = [];
+  List<Map<String, String>> _reminders = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadReminders();
+  }
+
+  Future<void> _loadReminders() async {
+    final prefs = await SharedPreferences.getInstance();
+    final remindersString = prefs.getString('reminders') ?? '[]';
+    final List<dynamic> remindersJson = jsonDecode(remindersString);
+
+    setState(() {
+      _reminders = remindersJson
+          .map((reminder) => Map<String, String>.from(reminder))
+          .toList();
+    });
+  }
+
+  Future<void> _saveReminders() async {
+    final prefs = await SharedPreferences.getInstance();
+    final remindersString = jsonEncode(_reminders);
+    await prefs.setString('reminders', remindersString);
+  }
 
   void _addReminder(Map<String, String> reminder) {
     setState(() {
       _reminders.add(reminder);
     });
+    _saveReminders();
+  }
+
+  void _deleteReminder(int index) {
+    setState(() {
+      _reminders.removeAt(index);
+    });
+    _saveReminders();
   }
 
   @override
@@ -38,11 +72,7 @@ class _ViewRemindersPageState extends State<ViewRemindersPage> {
                   ),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete),
-                    onPressed: () {
-                      setState(() {
-                        _reminders.removeAt(index);
-                      });
-                    },
+                    onPressed: () => _deleteReminder(index),
                   ),
                 );
               },

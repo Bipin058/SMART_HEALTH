@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:harry/screens/set_remainder_page.dart';
 import 'package:harry/screens/view_remainders_page.dart';
 import 'about_us_page.dart';
 import 'help_page.dart';
