@@ -17,10 +17,14 @@ class _AppointmentBookingPageState extends State<AppointmentBookingPage> {
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _healthIssuesController = TextEditingController();
+
   String? _selectedDoctorEmail;
-  List<String> _doctorEmails = [];
   DateTime? _selectedDate;
+  String? _selectedTimeSlot;
+
+  List<String> _doctorEmails = [];
   List<DateTime> _availableDates = [];
+  List<String> _timeSlots = [];
   bool _isLoading = false;
 
   @override
@@ -30,6 +34,7 @@ class _AppointmentBookingPageState extends State<AppointmentBookingPage> {
     _setUserEmail();
   }
 
+  // Fetch doctor emails
   Future<void> _fetchDoctorEmails() async {
     final snapshot =
         await FirebaseFirestore.instance.collection('doctors').get();
@@ -39,6 +44,7 @@ class _AppointmentBookingPageState extends State<AppointmentBookingPage> {
     });
   }
 
+  // Set current user email
   Future<void> _setUserEmail() async {
     User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -46,6 +52,7 @@ class _AppointmentBookingPageState extends State<AppointmentBookingPage> {
     }
   }
 
+  // Fetch available dates for the selected doctor
   Future<void> _fetchAvailableDates() async {
     if (_selectedDoctorEmail != null) {
       final snapshot = await FirebaseFirestore.instance
@@ -59,10 +66,99 @@ class _AppointmentBookingPageState extends State<AppointmentBookingPage> {
             .map((doc) => DateTime.parse(doc.id))
             .toList()
           ..sort((a, b) => a.compareTo(b));
+        _timeSlots = [];
+        _selectedTimeSlot = null;
       });
-
-      print("Available dates for $_selectedDoctorEmail: $_availableDates");
     }
+  }
+
+  // Fetch time slots for a selected date
+  Future<void> _fetchTimeSlots() async {
+    if (_selectedDoctorEmail != null && _selectedDate != null) {
+      final dateString = DateFormat('yyyy-MM-dd').format(_selectedDate!);
+      final snapshot = await FirebaseFirestore.instance
+          .collection('doctor_schedules')
+          .doc(_selectedDoctorEmail!)
+          .collection('schedules')
+          .doc(dateString)
+          .get();
+
+      final scheduleString = snapshot.data()?['schedule'] ?? '';
+      if (scheduleString.isNotEmpty && scheduleString.contains(' - ')) {
+        final generatedSlots = _generateTimeSlots(scheduleString);
+
+        // Fetch booked slots for the selected doctor and date
+        final bookedSnapshot = await FirebaseFirestore.instance
+            .collection('appointments')
+            .where('doctorEmail', isEqualTo: _selectedDoctorEmail)
+            .where('appointmentDate', isEqualTo: dateString)
+            .get();
+
+        final bookedSlots = bookedSnapshot.docs
+            .map((doc) => doc['appointmentTime'] as String)
+            .toSet();
+
+        setState(() {
+          // Exclude booked slots from available slots
+          _timeSlots = generatedSlots.where((slot) => !bookedSlots.contains(slot)).toList();
+        });
+      } else {
+        setState(() {
+          _timeSlots = [];
+        });
+      }
+    }
+  }
+
+  // Generate 25-minute time slots with a 5-minute break between each
+  List<String> _generateTimeSlots(String schedule) {
+    final timeSlots = <String>[];
+
+    final times = schedule.split(' - ');
+    if (times.length == 2) {
+      final startTime = _parseTime(times[0]);
+      final endTime = _parseTime(times[1]);
+
+      DateTime currentTime = DateTime(
+        _selectedDate!.year,
+        _selectedDate!.month,
+        _selectedDate!.day,
+        startTime.hour,
+        startTime.minute,
+      );
+      DateTime endDateTime = DateTime(
+        _selectedDate!.year,
+        _selectedDate!.month,
+        _selectedDate!.day,
+        endTime.hour,
+        endTime.minute,
+      );
+
+      while (currentTime.add(const Duration(minutes: 25)).isBefore(endDateTime) ||
+          currentTime.add(const Duration(minutes: 25)).isAtSameMomentAs(endDateTime)) {
+        final slotStart = _formatTime(currentTime);
+        final slotEnd = _formatTime(currentTime.add(const Duration(minutes: 25)));
+
+        timeSlots.add('$slotStart - $slotEnd');
+        currentTime = currentTime.add(const Duration(minutes: 30));
+      }
+    }
+
+    return timeSlots;
+  }
+
+  DateTime _parseTime(String time) {
+    try {
+      final format = DateFormat('h:mm a');
+      return format.parse(time);
+    } catch (e) {
+      throw FormatException('Invalid time format: $time');
+    }
+  }
+
+  String _formatTime(DateTime time) {
+    final format = DateFormat.jm();
+    return format.format(time);
   }
 
   Future<void> _registerAppointment() async {
@@ -77,7 +173,8 @@ class _AppointmentBookingPageState extends State<AppointmentBookingPage> {
         'phone': _phoneController.text,
         'email': _emailController.text,
         'doctorEmail': _selectedDoctorEmail,
-        'date': DateFormat('yyyy-MM-dd').format(_selectedDate!),
+        'appointmentDate': DateFormat('yyyy-MM-dd').format(_selectedDate!),
+        'appointmentTime': _selectedTimeSlot,
         'healthIssues': _healthIssuesController.text,
       };
 
@@ -174,6 +271,7 @@ class _AppointmentBookingPageState extends State<AppointmentBookingPage> {
                           _selectedDoctorEmail = value;
                           _selectedDate = null;
                           _availableDates = [];
+                          _timeSlots = [];
                         });
                         _fetchAvailableDates();
                       },
@@ -197,11 +295,36 @@ class _AppointmentBookingPageState extends State<AppointmentBookingPage> {
                       onChanged: (value) {
                         setState(() {
                           _selectedDate = value;
+                          _timeSlots = [];
+                          _selectedTimeSlot = null;
                         });
+                        _fetchTimeSlots();
                       },
                       validator: (value) {
                         if (value == null) {
                           return 'Please select a date';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    DropdownButtonFormField<String>(
+                      value: _selectedTimeSlot,
+                      decoration: const InputDecoration(labelText: 'Time Slot'),
+                      items: _timeSlots.map((slot) {
+                        return DropdownMenuItem(
+                          value: slot,
+                          child: Text(slot),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedTimeSlot = value;
+                        });
+                      },
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please select a time slot';
                         }
                         return null;
                       },

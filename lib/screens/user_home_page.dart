@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:harry/screens/video_call_homepage.dart';
 import 'package:harry/screens/view_remainders_page.dart';
 import 'about_us_page.dart';
 import 'help_page.dart';
@@ -59,14 +60,14 @@ class UserHomePage extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (context) => const MedicalReportPage()),
+                      builder: (context) => const VideoCallHomePage()),
                 );
               },
               style: ElevatedButton.styleFrom(
                 foregroundColor: Colors.white,
                 backgroundColor: Colors.green,
               ),
-              child: const Text('Medical Report'),
+              child: const Text('Join Virtual Appointment'),
             ),
             const SizedBox(height: 10.0),
             ElevatedButton(
