@@ -29,7 +29,7 @@ class VirtualPhysicalPage extends StatelessWidget {
                 backgroundColor: Colors.blue,
               ),
               child:
-                  const Text('Online Booking', style: TextStyle(fontSize: 18)),
+                  const Text('online Booking', style: TextStyle(fontSize: 18)),
             ),
             const SizedBox(height: 20),
             ElevatedButton(

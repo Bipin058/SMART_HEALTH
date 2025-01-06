@@ -83,7 +83,7 @@ class _AppointmentBookingPageState extends State<AppointmentBookingPage> {
           .doc(dateString)
           .get();
 
-      final scheduleString = snapshot.data()?['schedule'] ?? '';
+      final scheduleString = snapshot.data()?['online_schedule'] ?? '';
       if (scheduleString.isNotEmpty && scheduleString.contains(' - ')) {
         final generatedSlots = _generateTimeSlots(scheduleString);
 
@@ -161,48 +161,51 @@ class _AppointmentBookingPageState extends State<AppointmentBookingPage> {
     return format.format(time);
   }
 
-  Future<void> _registerAppointment() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isLoading = true;
-      });
+Future<void> _registerAppointment() async {
+  if (_formKey.currentState!.validate()) {
+    setState(() {
+      _isLoading = true;
+    });
 
-      final appointmentData = {
-        'name': _nameController.text,
-        'age': _ageController.text,
-        'phone': _phoneController.text,
-        'email': _emailController.text,
-        'doctorEmail': _selectedDoctorEmail,
-        'appointmentDate': DateFormat('yyyy-MM-dd').format(_selectedDate!),
-        'appointmentTime': _selectedTimeSlot,
-        'healthIssues': _healthIssuesController.text,
-      };
+    final appointmentData = {
+      'name': _nameController.text,
+      'age': _ageController.text,
+      'phone': _phoneController.text,
+      'email': _emailController.text,
+      'doctorEmail': _selectedDoctorEmail,
+      'appointmentDate': DateFormat('yyyy-MM-dd').format(_selectedDate!),
+      'appointmentTime': _selectedTimeSlot,
+      'healthIssues': _healthIssuesController.text,
+    };
 
-      await FirebaseFirestore.instance
-          .collection('appointments')
-          .add(appointmentData);
+    await FirebaseFirestore.instance
+        .collection('online_appointments')
+        .add(appointmentData);
 
-      setState(() {
-        _isLoading = false;
-      });
+    setState(() {
+      _isLoading = false;
+    });
 
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Success'),
-          content: const Text('Your appointment has been booked successfully.'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-    }
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Success'),
+        content: const Text('Your appointment has been booked successfully.'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
+}
+
+
+
 
   @override
   Widget build(BuildContext context) {

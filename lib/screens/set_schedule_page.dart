@@ -17,8 +17,10 @@ class _SetSchedulePageState extends State<SetSchedulePage> {
   DateTime _selectedDate = DateTime.now();
   CalendarFormat _calendarFormat = CalendarFormat.month;
   User? _currentUser;
-  TimeOfDay? _startTime;
-  TimeOfDay? _endTime;
+  TimeOfDay? _physicalStartTime;
+  TimeOfDay? _physicalEndTime;
+  TimeOfDay? _onlineStartTime;
+  TimeOfDay? _onlineEndTime;
 
   @override
   void initState() {
@@ -39,10 +41,14 @@ class _SetSchedulePageState extends State<SetSchedulePage> {
       setState(() {
         for (var doc in snapshot.docs) {
           final DateTime date = DateTime.parse(doc.id);
-          if (doc.data()['schedule'] is String) {
-            final String scheduleText = doc.data()['schedule'];
-            _scheduleControllers[date] =
-                TextEditingController(text: scheduleText);
+          final data = doc.data();
+          if (data['physical_schedule'] != null) {
+            final String physicalSchedule = data['physical_schedule'];
+            _scheduleControllers[date]?.text = physicalSchedule;
+          }
+          if (data['online_schedule'] != null) {
+            final String onlineSchedule = data['online_schedule'];
+            _scheduleControllers[date]?.text += "\nOnline: $onlineSchedule";
           }
         }
       });
@@ -51,9 +57,15 @@ class _SetSchedulePageState extends State<SetSchedulePage> {
 
   void _saveSchedule() async {
     if (_formKey.currentState!.validate()) {
-      if (_currentUser != null && _startTime != null && _endTime != null) {
-        final String scheduleText =
-            '${_startTime!.format(context)} - ${_endTime!.format(context)}';
+      if (_currentUser != null &&
+          _physicalStartTime != null &&
+          _physicalEndTime != null &&
+          _onlineStartTime != null &&
+          _onlineEndTime != null) {
+        final String physicalScheduleText =
+            '${_physicalStartTime!.format(context)} - ${_physicalEndTime!.format(context)}';
+        final String onlineScheduleText =
+            '${_onlineStartTime!.format(context)} - ${_onlineEndTime!.format(context)}';
 
         await FirebaseFirestore.instance
             .collection('doctor_schedules')
@@ -61,20 +73,24 @@ class _SetSchedulePageState extends State<SetSchedulePage> {
             .collection('schedules')
             .doc(_selectedDate.toIso8601String().split('T').first)
             .set({
-          'schedule': scheduleText,
+          'physical_schedule': physicalScheduleText,
+          'online_schedule': onlineScheduleText,
         });
 
         setState(() {
-          _scheduleControllers[_selectedDate]!.text = scheduleText;
-          _startTime = null;
-          _endTime = null;
+          _scheduleControllers[_selectedDate]?.text =
+              'Physical: $physicalScheduleText\nOnline: $onlineScheduleText';
+          _physicalStartTime = null;
+          _physicalEndTime = null;
+          _onlineStartTime = null;
+          _onlineEndTime = null;
         });
 
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Success'),
-            content: const Text('Your schedule has been saved successfully.'),
+            content: const Text('Your schedules have been saved successfully.'),
             actions: [
               TextButton(
                 onPressed: () {
@@ -90,7 +106,7 @@ class _SetSchedulePageState extends State<SetSchedulePage> {
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Error'),
-            content: const Text('Please select start and end times.'),
+            content: const Text('Please select all start and end times.'),
             actions: [
               TextButton(
                 onPressed: () {
@@ -105,17 +121,25 @@ class _SetSchedulePageState extends State<SetSchedulePage> {
     }
   }
 
-  Future<void> _selectTime(BuildContext context, bool isStartTime) async {
+  Future<void> _selectTime(BuildContext context, bool isPhysical, bool isStartTime) async {
     final TimeOfDay? picked = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.now(),
     );
     if (picked != null) {
       setState(() {
-        if (isStartTime) {
-          _startTime = picked;
+        if (isPhysical) {
+          if (isStartTime) {
+            _physicalStartTime = picked;
+          } else {
+            _physicalEndTime = picked;
+          }
         } else {
-          _endTime = picked;
+          if (isStartTime) {
+            _onlineStartTime = picked;
+          } else {
+            _onlineEndTime = picked;
+          }
         }
       });
     }
@@ -172,24 +196,48 @@ class _SetSchedulePageState extends State<SetSchedulePage> {
                     Row(
                       children: [
                         ElevatedButton(
-                          onPressed: () => _selectTime(context, true),
-                          child: const Text('Set Start Time'),
+                          onPressed: () => _selectTime(context, true, true),
+                          child: const Text('Set Physical Start Time'),
                         ),
                         const SizedBox(width: 10.0),
-                        if (_startTime != null)
-                          Text('Start: ${_startTime!.format(context)}'),
+                        if (_physicalStartTime != null)
+                          Text('Start: ${_physicalStartTime!.format(context)}'),
                       ],
                     ),
                     const SizedBox(height: 20.0),
                     Row(
                       children: [
                         ElevatedButton(
-                          onPressed: () => _selectTime(context, false),
-                          child: const Text('Set End Time'),
+                          onPressed: () => _selectTime(context, true, false),
+                          child: const Text('Set Physical End Time'),
                         ),
                         const SizedBox(width: 10.0),
-                        if (_endTime != null)
-                          Text('End: ${_endTime!.format(context)}'),
+                        if (_physicalEndTime != null)
+                          Text('End: ${_physicalEndTime!.format(context)}'),
+                      ],
+                    ),
+                    const SizedBox(height: 20.0),
+                    Row(
+                      children: [
+                        ElevatedButton(
+                          onPressed: () => _selectTime(context, false, true),
+                          child: const Text('Set Online Start Time'),
+                        ),
+                        const SizedBox(width: 10.0),
+                        if (_onlineStartTime != null)
+                          Text('Start: ${_onlineStartTime!.format(context)}'),
+                      ],
+                    ),
+                    const SizedBox(height: 20.0),
+                    Row(
+                      children: [
+                        ElevatedButton(
+                          onPressed: () => _selectTime(context, false, false),
+                          child: const Text('Set Online End Time'),
+                        ),
+                        const SizedBox(width: 10.0),
+                        if (_onlineEndTime != null)
+                          Text('End: ${_onlineEndTime!.format(context)}'),
                       ],
                     ),
                   ],
